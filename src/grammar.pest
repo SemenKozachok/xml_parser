@@ -1,0 +1,11 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+xml = { SOI ~ element ~ EOI }
+
+element = { opening_tag ~ (element | content)* ~ closing_tag } 
+
+opening_tag = { "<" ~ tag_name ~ ">" }
+closing_tag = { "</" ~ tag_name ~ ">" }
+
+tag_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
+content = @{ (!"<" ~ ANY)+ }

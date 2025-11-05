@@ -1,0 +1,17 @@
+[package]
+name = "xml_parser"
+version = "0.1.0"
+edition = "2024"
+authors = ["Semen Kozachok"]
+description = "Simple XML parser using pest. Builds a tree structure (XmlNode) from XML input, supports tag content search and a CLI for parsing files."
+license = "MIT"
+
+[dependencies]
+pest = "2.8.3"
+pest_derive = "2.8.3"
+thiserror = "1.0"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+anyhow = "1"
