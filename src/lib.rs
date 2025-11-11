@@ -11,6 +11,7 @@ pub struct Grammar;
 pub struct XmlNode {
     pub name: String,
     pub content: String,
+    pub attributes: Vec<(String, String)>,
     pub children: Vec<XmlNode>,
 }
 
@@ -53,9 +54,14 @@ impl XmlNode {
         results
     }
 
-    fn display_node(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+fn display_node(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
         let pad = "  ".repeat(indent);
-        writeln!(f, "{}<{}>", pad, self.name)?;
+        write!(f, "{}<{}", pad, self.name)?;
+
+        for (k, v) in &self.attributes {
+            write!(f, " {}=\"{}\"", k, v)?;
+        }
+        writeln!(f, ">")?;
 
         if !self.content.is_empty() {
             writeln!(f, "{}  {}", pad, self.content)?;
@@ -67,6 +73,7 @@ impl XmlNode {
 
         writeln!(f, "{}</{}>", pad, self.name)
     }
+
 }
 
 #[derive(Debug, Error)]
@@ -88,53 +95,104 @@ pub fn parse_xml(input: &str) -> Result<XmlNode, ParseError> {
     let mut parsed = Grammar::parse(Rule::xml, input)
         .map_err(|_| ParseError::SyntaxError)?;
 
-    let root = parsed
-        .next()
+    let root = parsed.next().ok_or(ParseError::SyntaxError)?;
+
+    let start_element = root
+        .into_inner()
+        .find(|p| p.as_rule() == Rule::element)
         .ok_or(ParseError::SyntaxError)?;
 
-    let element = root.into_inner().next().unwrap();
-    parse_element(element)
+    parse_element(start_element)
 }
+
 
 fn parse_element(element: pest::iterators::Pair<Rule>) -> Result<XmlNode, ParseError> {
     let mut inner = element.into_inner();
+    let pair = inner.next().ok_or(ParseError::SyntaxError)?;
 
-    let opening = inner
-        .next()
-        .ok_or(ParseError::SyntaxError)?;
-    let name_open = opening.into_inner().next().unwrap().as_str().to_string();
+    match pair.as_rule() {
+        Rule::full_element => {
+            let mut inner = pair.into_inner();
+            let opening = inner.next().ok_or(ParseError::SyntaxError)?;
+            let (name_open, attrs) = parse_opening_tag(opening)?;
 
-    let mut children = Vec::new();
-    let mut content = String::new();
+            let mut children = Vec::new();
+            let mut content = String::new();
 
-    for item in inner {
-        match item.as_rule() {
-            Rule::content => {
-                content.push_str(item.as_str().trim());
-            }
-            Rule::element => {
-                let child = parse_element(item)?;
-                children.push(child);
-            }
-            Rule::closing_tag => {
-                let name_close = item.into_inner().next().unwrap().as_str().to_string();
-                if name_close != name_open {
-                    return Err(ParseError::TagMismatch {
-                        opening: name_open,
-                        ending: name_close,
-                    });
+            for item in inner {
+                match item.as_rule() {
+                    Rule::content => content.push_str(item.as_str().trim()),
+                    Rule::element => children.push(parse_element(item)?),
+                    Rule::closing_tag => {
+                        let name_close = item.into_inner().next().unwrap().as_str().to_string();
+                        if name_close != name_open {
+                            return Err(ParseError::TagMismatch {
+                                opening: name_open,
+                                ending: name_close,
+                            });
+                        }
+                        return Ok(XmlNode {
+                            name: name_open,
+                            attributes: attrs,
+                            content,
+                            children,
+                        });
+                    }
+                    _ => {}
                 }
-                return Ok(XmlNode {
-                    name: name_open,
-                    content,
-                    children,
-                });
             }
-            _ => return Err(ParseError::InternalError{message: "Got unexpected token".to_string()}),
+            Err(ParseError::SyntaxError)
+        }
+
+        Rule::empty_element_tag => {
+            let mut inner = pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let attrs = parse_attributes(inner);
+            Ok(XmlNode {
+                name,
+                attributes: attrs,
+                content: String::new(),
+                children: Vec::new(),
+            })
+        }
+
+        Rule::comment => Ok(XmlNode {
+            name: "#comment".to_string(),
+            attributes: Vec::new(),
+            content: pair.as_str().to_string(),
+            children: Vec::new(),
+        }),
+
+        _ => Err(ParseError::InternalError {
+            message: format!("Unexpected rule: {:?}", pair.as_rule()),
+        }),
+    }
+}
+
+fn parse_opening_tag(pair: pest::iterators::Pair<Rule>,
+) -> Result<(String, Vec<(String, String)>), ParseError> {
+
+    let mut inner = pair.into_inner().filter(|p| p.as_rule() != Rule::WHITESPACE);
+    let name = inner.next().ok_or(ParseError::SyntaxError)?.as_str().to_string();
+    let attrs = parse_attributes(inner);
+    Ok((name, attrs))
+}
+
+fn parse_attributes<'a>(
+    pairs: impl Iterator<Item = pest::iterators::Pair<'a, Rule>>,
+) -> Vec<(String, String)> {
+    let mut attributes = Vec::new();
+    for attr in pairs {
+        if attr.as_rule() == Rule::attribute {
+            let mut parts = attr.into_inner();
+            let key = parts.next().unwrap().as_str().to_string();
+            let value = parts.next().unwrap().as_str().trim_matches('"').to_string();
+            attributes.push((key, value));
         }
     }
-    Err(ParseError::InternalError{message: "Went out of recursion loop incorrectly".to_string()})
+    attributes
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -240,5 +298,56 @@ mod tests {
             Err(ParseError::IoError(_)) => {}
             _ => panic!("expected IoError for missing file"),
         }
+    }
+    #[test]
+    fn parses_comment() {
+        let xml = "<root><!-- this is a comment --></root>";
+        let node = parse_ok(xml);
+
+        assert_eq!(node.name, "root");
+        assert_eq!(node.children[0].content, "<!-- this is a comment -->");
+        assert_eq!(node.content, "");
+    }
+
+    #[test]
+    fn parses_declaration() {
+        let xml = r#"<?xml ?><root></root>"#;
+        let node = parse_ok(xml);
+
+        assert_eq!(node.name, "root");
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn parses_empty_element_tag() {
+        let xml = "<root><empty /></root>";
+        let node = parse_ok(xml);
+
+        assert_eq!(node.name, "root");
+        assert_eq!(node.children.len(), 1);
+        assert_eq!(node.children[0].name, "empty");
+        assert!(node.children[0].children.is_empty());
+        assert_eq!(node.children[0].content, "");
+    }
+
+    #[test]
+    fn parses_element_with_attribute() {
+        let xml = r#"<root><a attr="value"></a></root>"#;
+        let node = parse_ok(xml);
+
+        assert_eq!(node.name, "root");
+        assert_eq!(node.children[0].attributes[0].0, "attr");
+        assert_eq!(node.content, "");
+    }
+
+    #[test]
+    fn parses_element_with_attributes() {
+        let xml = r#"<root><a attr="value" id="2"></a></root>"#;
+        let node = parse_ok(xml);
+
+        assert_eq!(node.name, "root");
+        assert_eq!(node.children[0].attributes[0].0, "attr");
+        assert_eq!(node.children[0].attributes[1].1, "2");
+        assert_eq!(node.content, "");
     }
 }

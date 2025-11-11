@@ -11,7 +11,7 @@
 		<depth>3</depth>
 	</size>
 	<segmented>0</segmented>
-	<object>
+	<object id="1">
 		<name>bio</name>
 		<pose>Unspecified</pose>
 		<truncated>0</truncated>
@@ -23,7 +23,7 @@
 			<ymax>264</ymax>
 		</bndbox>
 	</object>
-	<object>
+	<object id="2">
 		<name></name>
 		<pose>Unspecified</pose>
 		<truncated>1</truncated>
@@ -35,4 +35,5 @@
 			<ymax>360</ymax>
 		</bndbox>
 	</object>
+	<!-- this was filmed underwater!-->
 </annotation>

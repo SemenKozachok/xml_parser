@@ -1,11 +1,22 @@
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 
-xml = { SOI ~ element ~ EOI }
+xml = { SOI ~ declaration? ~ element ~ EOI }
+declaration = { "<?xml" ~ (WHITESPACE+ ~ attribute)* ~ WHITESPACE* ~ "?>" }
 
-element = { opening_tag ~ (element | content)* ~ closing_tag } 
+element = { comment | empty_element_tag  | full_element }
+full_element = { opening_tag ~ (element | content)* ~ closing_tag }
 
-opening_tag = { "<" ~ tag_name ~ ">" }
+
+opening_tag = { "<" ~ tag_name ~ (WHITESPACE* ~ attribute)*  ~ ">" }
 closing_tag = { "</" ~ tag_name ~ ">" }
 
+empty_element_tag = { "<" ~ tag_name ~ (WHITESPACE* ~ attribute)*  ~ "/>" }
+
 tag_name = @{ (ASCII_ALPHANUMERIC | "_")+ }
+
+attribute = { name ~ "=" ~ value }
+name = @{ (ASCII_ALPHANUMERIC | "_")+ }
+value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
 content = @{ (!"<" ~ ANY)+ }
+comment = { "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
