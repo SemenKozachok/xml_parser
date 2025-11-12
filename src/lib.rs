@@ -54,24 +54,31 @@ impl XmlNode {
         results
     }
 
-fn display_node(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
+    fn display_node(&self, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
         let pad = "  ".repeat(indent);
-        write!(f, "{}<{}", pad, self.name)?;
 
-        for (k, v) in &self.attributes {
-            write!(f, " {}=\"{}\"", k, v)?;
+        match self.name.as_str() {
+            "#comment" => writeln!(f, "{}{}", pad, self.content),
+            "#cdata" => writeln!(f, "{}{}", pad, self.content),
+            _ => {
+                write!(f, "{}<{}", pad, self.name)?;
+
+                for (k, v) in &self.attributes {
+                    write!(f, " {}=\"{}\"", k, v)?;
+                }
+                writeln!(f, ">")?;
+
+                if !self.content.is_empty() {
+                    writeln!(f, "{}  {}", pad, self.content)?;
+                }
+
+                for child in &self.children {
+                    child.display_node(f, indent + 3)?;
+                }
+
+                writeln!(f, "{}</{}>", pad, self.name)
+            }
         }
-        writeln!(f, ">")?;
-
-        if !self.content.is_empty() {
-            writeln!(f, "{}  {}", pad, self.content)?;
-        }
-
-        for child in &self.children {
-            child.display_node(f, indent + 3)?;
-        }
-
-        writeln!(f, "{}</{}>", pad, self.name)
     }
 
 }
@@ -158,6 +165,13 @@ fn parse_element(element: pest::iterators::Pair<Rule>) -> Result<XmlNode, ParseE
 
         Rule::comment => Ok(XmlNode {
             name: "#comment".to_string(),
+            attributes: Vec::new(),
+            content: pair.as_str().to_string(),
+            children: Vec::new(),
+        }),
+
+        Rule::cdata => Ok(XmlNode {
+            name: "#cdata".to_string(),
             attributes: Vec::new(),
             content: pair.as_str().to_string(),
             children: Vec::new(),
@@ -350,4 +364,28 @@ mod tests {
         assert_eq!(node.children[0].attributes[1].1, "2");
         assert_eq!(node.content, "");
     }
+
+    #[test]
+    fn parses_cdata_xml() {
+        let xml = "<![CDATA[Some <encoded> & text]]>";
+        let node = parse_ok(xml);
+        assert_eq!(node.name, "#cdata");
+        assert_eq!(node.content, "<![CDATA[Some <encoded> & text]]>");
+        assert!(node.attributes.is_empty());
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn parses_cdata_inside_xml() {
+        let xml = "<root><![CDATA[5 < 10 && x > 3]]></root>";
+        let node = parse_ok(xml);
+        assert_eq!(node.name, "root");
+        assert!(node.attributes.is_empty());
+        assert_eq!(node.children.len(), 1);
+
+        let cdata = &node.children[0];
+        assert_eq!(cdata.name, "#cdata");
+        assert_eq!(cdata.content, "<![CDATA[5 < 10 && x > 3]]>");
+    }
+
 }

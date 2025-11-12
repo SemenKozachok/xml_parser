@@ -60,6 +60,35 @@ fn parses_5names_file() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn parses_everything() -> Result<()> {
+    let path = "tests/samples/everything.txt";
+    let node = XmlNode::from_path(&path)
+        .map_err(|e| anyhow::anyhow!("failed to parse {:?}: {}", path, e))?;
+
+    assert_eq!(node.children.len(), 4);
+
+    let item1 = &node.children[0];
+    assert_eq!(item1.name, "item");
+    assert_eq!(item1.attributes, vec![
+        ("id".to_string(), "1".to_string()),
+        ("type".to_string(), "greeting".to_string())
+    ]);
+    assert_eq!(item1.content, "Hello there");
+
+    let comment = &node.children[2];
+    assert_eq!(comment.name, "#comment");
+    assert!(comment.content.contains("following line is CDATA"));
+
+    let cdata = &node.children[3];
+    assert_eq!(cdata.name, "#cdata");
+    assert_eq!(cdata.content, "<![CDATA[5 < 10 && x > 3]]>");
+
+
+    Ok(())
+}
+
 #[test]
 fn prints_visual_tree() -> Result<()> {
     let path = "tests/samples/2names.xml";

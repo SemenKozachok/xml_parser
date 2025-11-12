@@ -8,23 +8,21 @@ It converts input into tree consisting of XmlNode`s and implements DFS search al
 The parser reads files (any file type that can be read as string and contains valid xml structure), validates tag structure, and constructs the tree recursively. The parsing uses pest grammar rules in grammar.pest file. CLI allows user to parse given file, find content of given tag or find contents of all elements of given tag.
 
 ### The parser supports:
-### The parser supports:
 - Nested and sequential XML elements.
 - Comments inside XML elements.
 - Attributes inside tag names.
 - Optional xml declaration header.
 - Self-closing tags.
+- CDATA sections with markup characters.
 - Automatic whitespace trimming in text nodes.
 - Error handling for tag mismatches, syntax violations, and file reading issues issues.
 
-### The CLI implements:
 ### The CLI implements:
 - Access to nodes and their contents (`-get`, `-get_all`).
 - Formatted visual output of parsed XML trees through the `Display` trait.
 - Error handling for wrong commands, incorrect files or parsing errors.
 - Credits and help commands.
 
-### The tests include:
 ### The tests include:
 - unit tests for every grammar rule and error in lib.rs
 - integrated tests for parsing files in tests/parse_file.rs
@@ -48,6 +46,7 @@ Description of every rule:
 | **comment** | Matches XML comments of the form `<!-- ... -->`. |
 | **empty_element_tag** | Represents tags without an element, e.g. `<nothing here />` or `<img src="..." />`. |
 | **declaration** | Matches the optional XML declaration header like `<?xml ?>`. |
+| **cdata** | Matches XML cdata block which can contain markup content like `<tag>` without causing syntax errors. |
 | **WHITESPACE** | Silent whitespace rule used outside of tags (ignored during parsing except for attributes inside opening tags). |
 
 
@@ -61,7 +60,7 @@ Description of every rule:
 
 ## Tree Structure
 
-The output is a parent Node `XmlNode` of the tree, each node has name , content(possibly empty), Vector of attributes(possibly empty) and Vector of child Nodes(possibly empty). Comments are Nodes named `#comment`.
+The output is a parent Node `XmlNode` of the tree, each node has name , content(possibly empty), Vector of attributes(possibly empty) and Vector of child Nodes(possibly empty). Comments are Nodes named `#comment`, CDATA are Nodes named `#cdata`.
 
 It is constructed by recursively calling function that parses an element each time it finds element rule and returning Node each time it finds closing_tag.
 

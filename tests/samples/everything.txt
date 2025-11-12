@@ -1,0 +1,7 @@
+<?xml ?>
+<root>
+<item id="1" type="greeting">Hello there</item>
+<item id="2"><empty /></item>
+<!-- following line is CDATA -->
+<![CDATA[5 < 10 && x > 3]]>
+</root>

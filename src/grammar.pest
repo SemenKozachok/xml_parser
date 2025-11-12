@@ -3,7 +3,7 @@ WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 xml = { SOI ~ declaration? ~ element ~ EOI }
 declaration = { "<?xml" ~ (WHITESPACE+ ~ attribute)* ~ WHITESPACE* ~ "?>" }
 
-element = { comment | empty_element_tag  | full_element }
+element = { comment | cdata | empty_element_tag | full_element }
 full_element = { opening_tag ~ (element | content)* ~ closing_tag }
 
 
@@ -20,3 +20,4 @@ value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
 content = @{ (!"<" ~ ANY)+ }
 comment = { "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
+cdata = { "<![CDATA[" ~ (!"]]>" ~ ANY)* ~ "]]>" }
